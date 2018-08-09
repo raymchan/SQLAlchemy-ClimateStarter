@@ -1,7 +1,43 @@
-
-
 from flask import Flask, jsonify
 import datetime as dt
+
+#################################################
+# Function Setup
+#################################################
+# Write a function called `calc_temps` that will accept start date and end date in the format '%Y-%m-%d' 
+# and return the minimum, average, and maximum temperatures for that range of dates
+def calc_temps(start_date, end_date):
+    """TMIN, TAVG, and TMAX for a list of dates.
+    
+    Args:
+        start_date (string): A date string in the format %Y-%m-%d
+        end_date (string): A date string in the format %Y-%m-%d
+        
+    Returns:
+        TMIN, TAVE, and TMAX
+    """
+    
+    return session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+        filter(Measurement.date >= start_date).filter(Measurement.date <= end_date).all()
+
+
+# Create a query that will calculate the daily normals 
+# (i.e. the averages for tmin, tmax, and tavg for all historic data matching a specific month and day)
+
+def daily_normals(date):
+    """Daily Normals.
+    
+    Args:
+        date (str): A date string in the format '%m-%d'
+        
+    Returns:
+        A list of tuples containing the daily normals, tmin, tavg, and tmax
+    
+    """
+    
+    sel = [func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)]
+    return session.query(*sel).filter(func.strftime("%m-%d", Measurement.date) == date).all()
+
 
 
 #################################################
@@ -36,13 +72,13 @@ app = Flask(__name__)
 @app.route("/")
 def welcome():
     return (
-        "Welcome to the Climate App API!\n"
+        "Welcome to RMC's Climate App API!\n"
         "Available Routes:\n"
         "/api/v1.0/precipitation\n"
         "/api/v1.0/stations\n"
         "/api/v1.0/tobs\n"
-        "/api/v1.0/StartDate\n"
-        "/api/v1.0/StartDate/EndDate"
+        "/api/v1.0/StartDate As %m-%d\n"
+        "/api/v1.0/StartDate As %Y-%m-%d/EndDate as %Y-%m-%d"
         
     )
 
@@ -134,13 +170,37 @@ def tobs():
 #   * When given the start and the end date, calculate the `TMIN`, `TAVG`, and `TMAX` for dates between the start and end date inclusive.
 
 
-@app.route("/api/v1.0/tobs")
-def temp():
-    """Return the justice league data as json"""
+@app.route("/api/v1.0/<start>")
+def temp(start):
+    """Return a JSON list of the minimum temperature, the average temperature, and the max temperature for a given start or start-end range"""
+    
+    results=daily_normals(start)
+    
+    temps = []
+    for temp in results:
+        temp_dict = {}
+        temp_dict["TMIN"] = temp[0]
+        temp_dict["TAVG"] = temp[1]
+        temp_dict["TMAX"] = temp[2]
+        temps.append(temp_dict)
 
-    return jsonify(justice_league_members)
+    return jsonify(temps)
 
+@app.route("/api/v1.0/<start>/<end>")
+def tempend(start,end):
+    """Return a JSON list of the minimum temperature, the average temperature, and the max temperature for a given start or start-end range"""
+    
+    results=calc_temps(start, end)
+    
+    temps = []
+    for temp in results:
+        temp_dict = {}
+        temp_dict["TMIN"] = temp[0]
+        temp_dict["TAVG"] = temp[1]
+        temp_dict["TMAX"] = temp[2]
+        temps.append(temp_dict)
 
+    return jsonify(temps)
 
 
 if __name__ == "__main__":
